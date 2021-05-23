@@ -1,7 +1,7 @@
 import streamlit as st
+from src.rna import RNA
 import pandas as pd
-import numpy as np
-from streamlit_drawable_canvas import st_canvas
+from copy import copy
 
 
 def separator(n=1, side=False):
@@ -12,54 +12,62 @@ def separator(n=1, side=False):
             st.sidebar.text(' ')
 
 
-# MAIN CONFIG
-st.header('Multilayer Perceptron - Backpropagation')
-separator()
-with st.beta_expander('MNIST'):
-    st.file_uploader(label='Upload Image', type=['PNG', 'JPG', 'JPEG'])
-    st.text('OR')
-    st.markdown('#### Draw the number')
-    canvas = st_canvas(
-        fill_color='',
-        stroke_width=5,
-        stroke_color='#FFD100',
-        background_color='#202020',
-        background_image=None,
-        update_streamlit=True,
-        height=400,
-        drawing_mode='freedraw'
-    )
-    st.button('RUN PREDICTION')
-
-separator(n=2)
-chart = pd.DataFrame(np.random.randn(20, 6), columns=['score', 'a', 'b', 'c', 'd', 'e'])
-st.line_chart(chart['score'])
-st.dataframe(chart)
+@st.cache
+def train_test(path_train, path_test, learning, epochs=200, error=0.1, out='Linear'):
+    rna = RNA(rate=float(learning), error_rate=float(error), output_mode=out, epoch=int(epochs))
+    rna.train(path=path_train)
+    errors = rna.errors
+    score, df = rna.test(path=path_test)
+    return score, df, errors
 
 
 # SIDEBAR CONFIG
 st.sidebar.header('TRAIN CONFIGURATION')
 st.sidebar.text(' ')
+rate = 0.3
+# output_func = 'Linear'
+epoch_value = 100
+error_value = 0.5
 
-with st.sidebar.beta_expander('STOP MODE'):
-    side1, side2 = st.beta_columns([1, 1])
-    stop_mode = side1.selectbox(label='Mode', options=['Epoch', 'Error'])
-    if stop_mode == 'Epoch':
-        stop_mode_value = side2.text_input(label='Value', value='2000')
-    else:
-        stop_mode_value = side2.text_input(label='Value', value='0.0001')
+epoch_value = st.sidebar.text_input(label='Epochs', value=str(epoch_value))
 separator(side=True)
 
-with st.sidebar.beta_expander('LEARNING RATE'):
-    rate = st.slider(label=' ', min_value=0.0000, max_value=1.000, step=0.01, value=0.30)
+error_value = st.sidebar.text_input(label='Error Rate', value=str(error_value))
 separator(side=True)
 
-with st.sidebar.beta_expander('OUTPUT FUNCTION'):
-    output_func = st.selectbox(label='', options=['Linear', 'Logistics', 'Hyperbolic Tangent'])
+rate = st.sidebar.slider(label='Learning Rate', min_value=0.0000, max_value=1.000, step=0.01, value=rate)
 separator(side=True)
 
-with st.sidebar.beta_expander('UPLOAD TRAIN'):
-    file = st.file_uploader(label='', type=['csv', 'xlsx'])
-st.sidebar.text(' ')
-st.sidebar.text(' ')
-st.sidebar.button(label='CONFIRM')
+output_func = st.sidebar.selectbox(label='Output Function', options=['Linear', 'Logistics', 'Hyperbolic Tangent'], index=2)
+separator(side=True)
+
+
+# MAIN CONFIG
+st.header('Multilayer Perceptron - Backpropagation')
+separator(n=2)
+file_train = st.file_uploader(label='Upload Train', type=['csv'])
+if file_train is not None:
+    ex = copy(file_train)
+    with st.beta_expander('View Train'):
+        st.dataframe(pd.read_csv(ex))
+separator()
+
+tester = st.file_uploader(label='Upload Test', type=['CSV', 'JPG', 'PNG'])
+if tester is not None:
+    es = copy(tester)
+    with st.beta_expander('View Test'):
+        st.dataframe(pd.read_csv(es))
+separator()
+
+if st.button('RUN TEST'):
+    score, df, errors = train_test(
+         path_train=file_train,
+         path_test=tester,
+         learning=rate,
+         epochs=epoch_value,
+         error=error_value,
+         out=output_func
+    )
+    st.line_chart(data=errors)
+    st.text('SCORE: ' + str(score))
+    st.dataframe(data=df)
